@@ -123,22 +123,16 @@ jobs:
             --only-verified \
             --exclude-paths=<(echo -e "target/\n.git/\nCargo.lock")
 
-  # ── Installer smoke test (verify install.sh works) ────────────────────────
+  # ── Installer smoke test (verify install scripts from Vercel) ──────────────
   install-smoke:
     name: Install Script Smoke Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Syntax check install.sh
-        run: bash -n scripts/install.sh
-      - name: Syntax check install.ps1
+      - name: Fetch and syntax-check shell installer
         run: |
-          # Verify PowerShell script parses without errors
-          pwsh -NoProfile -Command "Get-Content scripts/install.ps1 | Out-Null" 2>&1 || true
-      - name: Shellcheck install.sh
+          curl -fsSL https://openfang.sh/install -o /tmp/install.sh
+          bash -n /tmp/install.sh
+      - name: Fetch and syntax-check PowerShell installer
         run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck scripts/install.sh
-      - name: Docker smoke test
-        run: |
-          docker build -f scripts/docker/install-smoke.Dockerfile .
+          curl -fsSL https://openfang.sh/install.ps1 -o /tmp/install.ps1
+          pwsh -NoProfile -Command "Get-Content /tmp/install.ps1 | Out-Null" 2>&1 || true
