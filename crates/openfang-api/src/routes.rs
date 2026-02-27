@@ -6930,6 +6930,36 @@ pub async fn patch_agent_config(
         }
     };
 
+    // Input length limits
+    const MAX_NAME_LEN: usize = 256;
+    const MAX_DESC_LEN: usize = 4096;
+    const MAX_PROMPT_LEN: usize = 65_536;
+
+    if let Some(ref name) = req.name {
+        if name.len() > MAX_NAME_LEN {
+            return (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                Json(serde_json::json!({"error": format!("Name exceeds max length ({MAX_NAME_LEN} chars)")})),
+            );
+        }
+    }
+    if let Some(ref desc) = req.description {
+        if desc.len() > MAX_DESC_LEN {
+            return (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                Json(serde_json::json!({"error": format!("Description exceeds max length ({MAX_DESC_LEN} chars)")})),
+            );
+        }
+    }
+    if let Some(ref prompt) = req.system_prompt {
+        if prompt.len() > MAX_PROMPT_LEN {
+            return (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                Json(serde_json::json!({"error": format!("System prompt exceeds max length ({MAX_PROMPT_LEN} chars)")})),
+            );
+        }
+    }
+
     // Validate color format if provided
     if let Some(ref color) = req.color {
         if !color.is_empty() && !color.starts_with('#') {
@@ -7068,6 +7098,13 @@ pub async fn clone_agent(
             );
         }
     };
+
+    if req.new_name.len() > 256 {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Json(serde_json::json!({"error": "Name exceeds max length (256 chars)"})),
+        );
+    }
 
     if req.new_name.trim().is_empty() {
         return (

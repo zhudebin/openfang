@@ -382,6 +382,9 @@ fn estimate_cost_rates(model: &str) -> (f64, f64) {
     if model.contains("glm") {
         return (1.50, 5.00);
     }
+    if model.contains("codegeex") {
+        return (0.10, 0.10);
+    }
 
     // ── Moonshot / Kimi ─────────────────────────────────────────
     if model.contains("moonshot") || model.contains("kimi") {

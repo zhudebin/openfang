@@ -10,7 +10,7 @@ use openfang_types::model_catalog::{
     LMSTUDIO_BASE_URL, MINIMAX_BASE_URL, MISTRAL_BASE_URL, MOONSHOT_BASE_URL, OLLAMA_BASE_URL,
     OPENAI_BASE_URL, OPENROUTER_BASE_URL, PERPLEXITY_BASE_URL, QIANFAN_BASE_URL, QWEN_BASE_URL,
     REPLICATE_BASE_URL, SAMBANOVA_BASE_URL, TOGETHER_BASE_URL, VLLM_BASE_URL, XAI_BASE_URL,
-    ZHIPU_BASE_URL,
+    ZHIPU_BASE_URL, ZHIPU_CODING_BASE_URL,
 };
 use std::collections::HashMap;
 
@@ -436,6 +436,15 @@ fn builtin_providers() -> Vec<ProviderInfo> {
             model_count: 0,
         },
         ProviderInfo {
+            id: "zhipu_coding".into(),
+            display_name: "Zhipu Coding (CodeGeeX)".into(),
+            api_key_env: "ZHIPU_API_KEY".into(),
+            base_url: ZHIPU_CODING_BASE_URL.into(),
+            key_required: true,
+            auth_status: AuthStatus::Missing,
+            model_count: 0,
+        },
+        ProviderInfo {
             id: "moonshot".into(),
             display_name: "Moonshot (Kimi)".into(),
             api_key_env: "MOONSHOT_API_KEY".into(),
@@ -518,6 +527,7 @@ fn builtin_aliases() -> HashMap<String, String> {
         ("ernie", "ernie-4.5-8k"),
         ("kimi", "moonshot-v1-128k"),
         ("minimax", "minimax-text-01"),
+        ("codegeex", "codegeex-4"),
     ];
     pairs
         .into_iter()
@@ -2350,6 +2360,23 @@ fn builtin_models() -> Vec<ModelCatalogEntry> {
             aliases: vec![],
         },
         // ══════════════════════════════════════════════════════════════
+        // Zhipu Coding / CodeGeeX (1)
+        // ══════════════════════════════════════════════════════════════
+        ModelCatalogEntry {
+            id: "codegeex-4".into(),
+            display_name: "CodeGeeX 4".into(),
+            provider: "zhipu_coding".into(),
+            tier: ModelTier::Smart,
+            context_window: 131_072,
+            max_output_tokens: 8_192,
+            input_cost_per_m: 0.10,
+            output_cost_per_m: 0.10,
+            supports_tools: true,
+            supports_vision: false,
+            supports_streaming: true,
+            aliases: vec!["codegeex".into()],
+        },
+        // ══════════════════════════════════════════════════════════════
         // Moonshot / Kimi (3)
         // ══════════════════════════════════════════════════════════════
         ModelCatalogEntry {
@@ -2570,7 +2597,7 @@ mod tests {
     #[test]
     fn test_catalog_has_providers() {
         let catalog = ModelCatalog::new();
-        assert_eq!(catalog.list_providers().len(), 27);
+        assert_eq!(catalog.list_providers().len(), 28);
     }
 
     #[test]
@@ -2790,6 +2817,7 @@ mod tests {
         assert!(catalog.get_provider("qwen").is_some());
         assert!(catalog.get_provider("minimax").is_some());
         assert!(catalog.get_provider("zhipu").is_some());
+        assert!(catalog.get_provider("zhipu_coding").is_some());
         assert!(catalog.get_provider("moonshot").is_some());
         assert!(catalog.get_provider("qianfan").is_some());
         assert!(catalog.get_provider("bedrock").is_some());
@@ -2800,6 +2828,7 @@ mod tests {
         let catalog = ModelCatalog::new();
         assert!(catalog.find_model("kimi").is_some());
         assert!(catalog.find_model("glm").is_some());
+        assert!(catalog.find_model("codegeex").is_some());
         assert!(catalog.find_model("ernie").is_some());
         assert!(catalog.find_model("minimax").is_some());
     }
