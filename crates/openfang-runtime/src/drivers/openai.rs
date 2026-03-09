@@ -22,10 +22,14 @@ pub struct OpenAIDriver {
 impl OpenAIDriver {
     /// Create a new OpenAI-compatible driver.
     pub fn new(api_key: String, base_url: String) -> Self {
+        let client = reqwest::Client::builder()
+            .user_agent(format!("OpenFang/{}", env!("CARGO_PKG_VERSION")))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
         Self {
             api_key: Zeroizing::new(api_key),
             base_url,
-            client: reqwest::Client::new(),
+            client,
             extra_headers: Vec::new(),
         }
     }
