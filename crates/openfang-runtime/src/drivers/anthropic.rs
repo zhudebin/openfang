@@ -213,6 +213,7 @@ impl LlmDriver for AnthropicDriver {
                 .map_err(|e| LlmError::Http(e.to_string()))?;
 
             let status = resp.status().as_u16();
+            debug!(url = %url, status, attempt, "Anthropic HTTP response received");
 
             if status == 429 || status == 529 {
                 if attempt < max_retries {
@@ -320,6 +321,7 @@ impl LlmDriver for AnthropicDriver {
                 .map_err(|e| LlmError::Http(e.to_string()))?;
 
             let status = resp.status().as_u16();
+            debug!(url = %url, status, attempt, "Anthropic streaming HTTP response received");
 
             if status == 429 || status == 529 {
                 if attempt < max_retries {

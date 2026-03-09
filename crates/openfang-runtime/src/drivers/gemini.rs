@@ -413,6 +413,7 @@ impl LlmDriver for GeminiDriver {
                 .map_err(|e| LlmError::Http(e.to_string()))?;
 
             let status = resp.status().as_u16();
+            debug!(url = %url, status, attempt, "Gemini HTTP response received");
 
             if status == 429 || status == 503 {
                 if attempt < max_retries {
@@ -493,6 +494,7 @@ impl LlmDriver for GeminiDriver {
                 .map_err(|e| LlmError::Http(e.to_string()))?;
 
             let status = resp.status().as_u16();
+            debug!(url = %url, status, attempt, "Gemini streaming HTTP response received");
 
             if status == 429 || status == 503 {
                 if attempt < max_retries {

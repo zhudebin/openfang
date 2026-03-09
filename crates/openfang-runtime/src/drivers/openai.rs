@@ -354,6 +354,7 @@ impl LlmDriver for OpenAIDriver {
                 .map_err(|e| LlmError::Http(e.to_string()))?;
 
             let status = resp.status().as_u16();
+            debug!(url = %url, status, attempt, "OpenAI HTTP response received");
             if status == 429 {
                 if attempt < max_retries {
                     let retry_ms = (attempt + 1) as u64 * 2000;
@@ -694,6 +695,7 @@ impl LlmDriver for OpenAIDriver {
                 .map_err(|e| LlmError::Http(e.to_string()))?;
 
             let status = resp.status().as_u16();
+            debug!(url = %url, status, attempt, "OpenAI streaming HTTP response received");
             if status == 429 {
                 if attempt < max_retries {
                     let retry_ms = (attempt + 1) as u64 * 2000;

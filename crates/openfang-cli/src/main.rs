@@ -777,11 +777,27 @@ enum SystemCommands {
     },
 }
 
+/// Read just the `log_level` field from `~/.openfang/config.toml` without loading
+/// the full `KernelConfig`. This is used as fallback when `RUST_LOG` is not set.
+/// Returns `None` if the config file doesn't exist or doesn't contain `log_level`.
+fn read_config_log_level() -> Option<String> {
+    let config_path = cli_openfang_home().join("config.toml");
+    let content = std::fs::read_to_string(config_path).ok()?;
+    let table: toml::Table = content.parse().ok()?;
+    table
+        .get("log_level")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
 fn init_tracing_stderr() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+                .unwrap_or_else(|_| {
+                    let level = read_config_log_level().unwrap_or_else(|| "info".to_string());
+                    tracing_subscriber::EnvFilter::new(level)
+                }),
         )
         .init();
 }
@@ -807,7 +823,10 @@ fn init_tracing_file() {
             tracing_subscriber::fmt()
                 .with_env_filter(
                     tracing_subscriber::EnvFilter::try_from_default_env()
-                        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+                        .unwrap_or_else(|_| {
+                            let level = read_config_log_level().unwrap_or_else(|| "info".to_string());
+                            tracing_subscriber::EnvFilter::new(level)
+                        }),
                 )
                 .with_writer(std::sync::Mutex::new(file))
                 .with_ansi(false)

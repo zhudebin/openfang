@@ -153,6 +153,13 @@ impl LlmDriver for ClaudeCodeDriver {
             .await
             .map_err(|e| LlmError::Http(format!("Failed to spawn claude CLI: {e}")))?;
 
+        debug!(
+            exit_code = ?output.status.code(),
+            stdout_bytes = output.stdout.len(),
+            stderr_bytes = output.stderr.len(),
+            "Claude Code CLI completed"
+        );
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(LlmError::Api {

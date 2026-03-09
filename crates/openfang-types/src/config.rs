@@ -938,6 +938,30 @@ impl Default for ThinkingConfig {
     }
 }
 
+/// Logging configuration for LLM provider communication diagnostics.
+///
+/// Configure in config.toml:
+/// ```toml
+/// [logging]
+/// llm_body_max_chars = 2000
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LoggingConfig {
+    /// Maximum characters to log for LLM request/response bodies at `trace` level.
+    /// Bodies longer than this are truncated with a `...[truncated]` suffix.
+    /// Default: 2000.
+    pub llm_body_max_chars: usize,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            llm_body_max_chars: 2000,
+        }
+    }
+}
+
 /// Top-level kernel configuration.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -1065,6 +1089,9 @@ pub struct KernelConfig {
     /// OAuth client ID overrides for PKCE flows.
     #[serde(default)]
     pub oauth: OAuthConfig,
+    /// Logging configuration (LLM body truncation, etc.).
+    #[serde(default)]
+    pub logging: LoggingConfig,
 }
 
 /// OAuth client ID overrides for PKCE flows.
@@ -1232,6 +1259,7 @@ impl Default for KernelConfig {
             budget: BudgetConfig::default(),
             provider_urls: HashMap::new(),
             oauth: OAuthConfig::default(),
+            logging: LoggingConfig::default(),
         }
     }
 }
@@ -1324,6 +1352,7 @@ impl std::fmt::Debug for KernelConfig {
                 &format!("{} provider(s)", self.auth_profiles.len()),
             )
             .field("thinking", &self.thinking.is_some())
+            .field("logging", &self.logging)
             .finish()
     }
 }

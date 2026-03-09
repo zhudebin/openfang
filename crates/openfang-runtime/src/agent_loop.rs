@@ -324,10 +324,23 @@ pub async fn run_agent_loop(
 
         // Call LLM with retry, error classification, and circuit breaker
         let provider_name = manifest.model.provider.as_str();
+        let llm_start = std::time::Instant::now();
         let mut response = call_with_retry(&*driver, request, Some(provider_name), None).await?;
+        let llm_elapsed_ms = llm_start.elapsed().as_millis() as u64;
 
         total_usage.input_tokens += response.usage.input_tokens;
         total_usage.output_tokens += response.usage.output_tokens;
+
+        info!(
+            agent = %manifest.name,
+            iteration,
+            elapsed_ms = llm_elapsed_ms,
+            stop_reason = ?response.stop_reason,
+            input_tokens = response.usage.input_tokens,
+            output_tokens = response.usage.output_tokens,
+            tool_calls = response.tool_calls.len(),
+            "Agent loop LLM call completed"
+        );
 
         // Recover tool calls output as text by models that don't use the tool_calls API field
         // (e.g. Groq/Llama, DeepSeek emit `<function=name>{json}</function>` in text)
@@ -481,7 +494,9 @@ pub async fn run_agent_loop(
                 info!(
                     agent = %manifest.name,
                     iterations = iteration + 1,
-                    tokens = total_usage.total(),
+                    total_input_tokens = total_usage.input_tokens,
+                    total_output_tokens = total_usage.output_tokens,
+                    response_len = final_response.len(),
                     "Agent loop completed"
                 );
 
@@ -615,6 +630,7 @@ pub async fn run_agent_loop(
                     let effective_exec_policy = manifest.exec_policy.as_ref();
 
                     // Timeout-wrapped execution
+                    let tool_start = std::time::Instant::now();
                     let result = match tokio::time::timeout(
                         Duration::from_secs(TOOL_TIMEOUT_SECS),
                         tool_runner::execute_tool(
@@ -656,6 +672,15 @@ pub async fn run_agent_loop(
                             }
                         }
                     };
+                    let tool_elapsed_ms = tool_start.elapsed().as_millis() as u64;
+                    debug!(
+                        agent = %manifest.name,
+                        tool = %tool_call.name,
+                        elapsed_ms = tool_elapsed_ms,
+                        is_error = result.is_error,
+                        result_len = result.content.len(),
+                        "Tool execution completed"
+                    );
 
                     // Fire AfterToolCall hook
                     if let Some(hook_reg) = hooks {

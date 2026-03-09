@@ -9,6 +9,7 @@ pub mod claude_code;
 pub mod copilot;
 pub mod fallback;
 pub mod gemini;
+pub mod logging;
 pub mod openai;
 
 use crate::llm_driver::{DriverConfig, LlmDriver, LlmError};
@@ -233,10 +234,23 @@ fn provider_defaults(provider: &str) -> Option<ProviderDefaults> {
 /// - `replicate` — Replicate
 /// - Any custom provider with `base_url` set uses OpenAI-compatible format
 pub fn create_driver(config: &DriverConfig) -> Result<Arc<dyn LlmDriver>, LlmError> {
+    create_driver_with_logging(config, None)
+}
+
+/// Create an LLM driver, optionally wrapped with a `LoggingDriver`.
+///
+/// When `llm_body_max_chars` is `Some(n)`, the returned driver is wrapped in a
+/// [`logging::LoggingDriver`] that emits structured tracing logs for every
+/// request/response at `info`/`debug`/`trace` levels.
+pub fn create_driver_with_logging(
+    config: &DriverConfig,
+    llm_body_max_chars: Option<usize>,
+) -> Result<Arc<dyn LlmDriver>, LlmError> {
     let provider = config.provider.as_str();
 
-    // Anthropic uses a different API format — special case
-    if provider == "anthropic" {
+    // Build the raw driver first
+    let raw_driver: Arc<dyn LlmDriver> = if provider == "anthropic" {
+        // Anthropic uses a different API format — special case
         let api_key = config
             .api_key
             .clone()
@@ -248,11 +262,9 @@ pub fn create_driver(config: &DriverConfig) -> Result<Arc<dyn LlmDriver>, LlmErr
             .base_url
             .clone()
             .unwrap_or_else(|| ANTHROPIC_BASE_URL.to_string());
-        return Ok(Arc::new(anthropic::AnthropicDriver::new(api_key, base_url)));
-    }
-
-    // Gemini uses a different API format — special case
-    if provider == "gemini" || provider == "google" {
+        Arc::new(anthropic::AnthropicDriver::new(api_key, base_url))
+    } else if provider == "gemini" || provider == "google" {
+        // Gemini uses a different API format — special case
         let api_key = config
             .api_key
             .clone()
@@ -267,11 +279,9 @@ pub fn create_driver(config: &DriverConfig) -> Result<Arc<dyn LlmDriver>, LlmErr
             .base_url
             .clone()
             .unwrap_or_else(|| GEMINI_BASE_URL.to_string());
-        return Ok(Arc::new(gemini::GeminiDriver::new(api_key, base_url)));
-    }
-
-    // Codex — reuses OpenAI driver with credential sync from Codex CLI
-    if provider == "codex" || provider == "openai-codex" {
+        Arc::new(gemini::GeminiDriver::new(api_key, base_url))
+    } else if provider == "codex" || provider == "openai-codex" {
+        // Codex — reuses OpenAI driver with credential sync from Codex CLI
         let api_key = config
             .api_key
             .clone()
@@ -286,19 +296,13 @@ pub fn create_driver(config: &DriverConfig) -> Result<Arc<dyn LlmDriver>, LlmErr
             .base_url
             .clone()
             .unwrap_or_else(|| OPENAI_BASE_URL.to_string());
-        return Ok(Arc::new(openai::OpenAIDriver::new(api_key, base_url)));
-    }
-
-    // Claude Code CLI — subprocess-based, no API key needed
-    if provider == "claude-code" {
+        Arc::new(openai::OpenAIDriver::new(api_key, base_url))
+    } else if provider == "claude-code" {
+        // Claude Code CLI — subprocess-based, no API key needed
         let cli_path = config.base_url.clone();
-        return Ok(Arc::new(claude_code::ClaudeCodeDriver::new(cli_path)));
-    }
-
-    // GitHub Copilot — wraps OpenAI-compatible driver with automatic token exchange.
-    // The CopilotDriver exchanges the GitHub PAT for a Copilot API token on demand,
-    // caches it, and refreshes when expired.
-    if provider == "github-copilot" || provider == "copilot" {
+        Arc::new(claude_code::ClaudeCodeDriver::new(cli_path))
+    } else if provider == "github-copilot" || provider == "copilot" {
+        // GitHub Copilot — wraps OpenAI-compatible driver with automatic token exchange.
         let github_token = config
             .api_key
             .clone()
@@ -312,14 +316,9 @@ pub fn create_driver(config: &DriverConfig) -> Result<Arc<dyn LlmDriver>, LlmErr
             .base_url
             .clone()
             .unwrap_or_else(|| copilot::GITHUB_COPILOT_BASE_URL.to_string());
-        return Ok(Arc::new(copilot::CopilotDriver::new(
-            github_token,
-            base_url,
-        )));
-    }
-
-    // All other providers use OpenAI-compatible format
-    if let Some(defaults) = provider_defaults(provider) {
+        Arc::new(copilot::CopilotDriver::new(github_token, base_url))
+    } else if let Some(defaults) = provider_defaults(provider) {
+        // All other known providers use OpenAI-compatible format
         let api_key = config
             .api_key
             .clone()
@@ -338,28 +337,34 @@ pub fn create_driver(config: &DriverConfig) -> Result<Arc<dyn LlmDriver>, LlmErr
             .clone()
             .unwrap_or_else(|| defaults.base_url.to_string());
 
-        return Ok(Arc::new(openai::OpenAIDriver::new(api_key, base_url)));
-    }
-
-    // Unknown provider — if base_url is set, treat as custom OpenAI-compatible
-    if let Some(ref base_url) = config.base_url {
+        Arc::new(openai::OpenAIDriver::new(api_key, base_url))
+    } else if let Some(ref base_url) = config.base_url {
+        // Unknown provider — if base_url is set, treat as custom OpenAI-compatible
         let api_key = config.api_key.clone().unwrap_or_default();
-        return Ok(Arc::new(openai::OpenAIDriver::new(
-            api_key,
-            base_url.clone(),
-        )));
-    }
+        Arc::new(openai::OpenAIDriver::new(api_key, base_url.clone()))
+    } else {
+        return Err(LlmError::Api {
+            status: 0,
+            message: format!(
+                "Unknown provider '{}'. Supported: anthropic, gemini, openai, groq, openrouter, \
+                 deepseek, together, mistral, fireworks, ollama, vllm, lmstudio, perplexity, \
+                 cohere, ai21, cerebras, sambanova, huggingface, xai, replicate, github-copilot, \
+                 venice, codex, claude-code. Or set base_url for a custom OpenAI-compatible endpoint.",
+                provider
+            ),
+        });
+    };
 
-    Err(LlmError::Api {
-        status: 0,
-        message: format!(
-            "Unknown provider '{}'. Supported: anthropic, gemini, openai, groq, openrouter, \
-             deepseek, together, mistral, fireworks, ollama, vllm, lmstudio, perplexity, \
-             cohere, ai21, cerebras, sambanova, huggingface, xai, replicate, github-copilot, \
-             venice, codex, claude-code. Or set base_url for a custom OpenAI-compatible endpoint.",
-            provider
-        ),
-    })
+    // Wrap with logging driver if configured
+    if let Some(max_chars) = llm_body_max_chars {
+        Ok(Arc::new(logging::LoggingDriver::new(
+            raw_driver,
+            config.provider.clone(),
+            max_chars,
+        )))
+    } else {
+        Ok(raw_driver)
+    }
 }
 
 /// Detect the first available provider by scanning environment variables.

@@ -75,6 +75,7 @@ docker run \
     "${RUN_FLAGS[@]+"${RUN_FLAGS[@]}"}" \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
+    -e OPENAI_API_KEY=${OPENAI_API_KEY} \
     -p "${PORT}:${PORT}" \
     -v "$OPENFANG_HOME:/data" \
     "$IMAGE_NAME" \

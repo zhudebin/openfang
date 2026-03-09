@@ -558,7 +558,8 @@ impl OpenFangKernel {
         };
         // Primary driver failure is non-fatal: the dashboard should remain accessible
         // even if the LLM provider is misconfigured. Users can fix config via dashboard.
-        let primary_result = drivers::create_driver(&driver_config);
+        let llm_log_max = Some(config.logging.llm_body_max_chars);
+        let primary_result = drivers::create_driver_with_logging(&driver_config, llm_log_max);
         let mut driver_chain: Vec<Arc<dyn LlmDriver>> = Vec::new();
 
         match &primary_result {
@@ -576,7 +577,7 @@ impl OpenFangKernel {
                         api_key: std::env::var(env_var).ok(),
                         base_url: config.provider_urls.get(provider).cloned(),
                     };
-                    match drivers::create_driver(&auto_config) {
+                    match drivers::create_driver_with_logging(&auto_config, llm_log_max) {
                         Ok(d) => {
                             info!(
                                 provider = %provider,
@@ -617,7 +618,7 @@ impl OpenFangKernel {
                     .clone()
                     .or_else(|| config.provider_urls.get(&fb.provider).cloned()),
             };
-            match drivers::create_driver(&fb_config) {
+            match drivers::create_driver_with_logging(&fb_config, llm_log_max) {
                 Ok(d) => {
                     info!(
                         provider = %fb.provider,
@@ -3974,7 +3975,8 @@ impl OpenFangKernel {
                 base_url,
             };
 
-            drivers::create_driver(&driver_config).map_err(|e| {
+            let llm_log_max = Some(self.config.logging.llm_body_max_chars);
+            drivers::create_driver_with_logging(&driver_config, llm_log_max).map_err(|e| {
                 KernelError::BootFailed(format!("Agent LLM driver init failed: {e}"))
             })?
         };
@@ -3996,7 +3998,7 @@ impl OpenFangKernel {
                         .clone()
                         .or_else(|| self.config.provider_urls.get(&fb.provider).cloned()),
                 };
-                match drivers::create_driver(&config) {
+                match drivers::create_driver_with_logging(&config, Some(self.config.logging.llm_body_max_chars)) {
                     Ok(d) => chain.push((d, fb.model.clone())),
                     Err(e) => {
                         warn!("Fallback driver '{}' failed to init: {e}", fb.provider);
